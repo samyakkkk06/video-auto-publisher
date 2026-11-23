@@ -57,16 +57,29 @@ def upload(cfg: Config, replace: bool = True, tag: str = RELEASE_TAG) -> dict:
     known = {item["name"]: item for item in manifest["clips"]}
     results = []
 
+    def save_progress() -> None:
+        manifest["clips"] = results
+        manifest["updated_at"] = datetime.now().isoformat(timespec="seconds")
+        manifest["clip_count"] = len(results)
+        manifest["total_bytes"] = sum(item.get("size", 0) for item in results)
+        save_manifest(cfg, manifest)
+
     for clip in clips:
         size = clip.stat().st_size
         existing = known.get(clip.name)
         if existing and existing.get("size") == size and existing.get("url"):
             print(f"  unchanged  {clip.name}")
             results.append(existing)
+            save_progress()
             continue
 
-        print(f"  uploading  {clip.name} ({size / 1_000_000:.1f} MB) ...")
-        url = media_hosting.upload_to_github_release(cfg, clip, tag, replace=replace)
+        print(f"  uploading  {clip.name} ({size / 1_000_000:.1f} MB) ...", flush=True)
+        try:
+            url = media_hosting.upload_to_github_release(cfg, clip, tag, replace=replace)
+        except Exception as exc:  # noqa: BLE001
+            print(f"    FAILED    {exc}")
+            save_progress()
+            continue
         item = {
             "name": clip.name,
             "asset": clip.name,
@@ -75,13 +88,10 @@ def upload(cfg: Config, replace: bool = True, tag: str = RELEASE_TAG) -> dict:
             "uploaded_at": datetime.now().isoformat(timespec="seconds"),
         }
         results.append(item)
-        print(f"    -> {url}")
+        print(f"    done      {url}", flush=True)
+        save_progress()
 
-    manifest["clips"] = results
-    manifest["updated_at"] = datetime.now().isoformat(timespec="seconds")
-    manifest["clip_count"] = len(results)
-    manifest["total_bytes"] = sum(item.get("size", 0) for item in results)
-    save_manifest(cfg, manifest)
+    save_progress()
     return manifest
 
 
@@ -108,11 +118,15 @@ def main() -> int:
     cfg = load_config()
     print("\nUploading clips to GitHub Release...\n")
     manifest = upload(cfg, tag=args.tag)
-    print(f"\nManifest written: {MANIFEST_NAME} ({manifest.get('clip_count', 0)} clips)")
+    count = manifest.get("clip_count", 0)
+    total = len(load_clips(cfg))
+    print(f"\nManifest written: {MANIFEST_NAME} ({count}/{total} clips)")
+    if count < total:
+        print(f"{total - count} clips failed to upload, run this again to retry them.")
     if not args.no_push:
         push_manifest(cfg)
     print()
-    return 0
+    return 0 if count == total else 1
 
 
 if __name__ == "__main__":
