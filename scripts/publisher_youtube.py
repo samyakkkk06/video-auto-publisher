@@ -102,13 +102,30 @@ def set_visibility(cfg: Config, video_id: str, privacy: str) -> dict:
 
 def list_uploads(cfg: Config, max_results: int = 20) -> list[dict]:
     service = youtube_service(cfg)
-    response = service.videos().list(
-        part="snippet,status",
-        mine=True,
+    channels = service.channels().list(part="contentDetails", mine=True).execute().get("items", [])
+    if not channels:
+        return []
+    uploads = (
+        channels[0]
+        .get("contentDetails", {})
+        .get("relatedPlaylists", {})
+        .get("uploads")
+    )
+    if not uploads:
+        return []
+    pl = service.playlistItems().list(
+        part="snippet,status,contentDetails",
+        playlistId=uploads,
         maxResults=max_results,
-        order="date",
     ).execute()
-    return response.get("items", [])
+    items = []
+    for it in pl.get("items", []):
+        vid = it.get("contentDetails", {}).get("videoId")
+        sn = it.get("snippet", {})
+        st = it.get("status", {})
+        if vid:
+            items.append({"id": vid, "snippet": sn, "status": st})
+    return items
 
 
 def auth_setup_script(cfg: Config) -> str:

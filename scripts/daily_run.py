@@ -350,8 +350,12 @@ def verify(cfg: Config) -> None:
         print("Instagram API      : python dependencies not installed (run setup.ps1)")
 
     method = cfg.get("media_hosting", "method", default="github_release")
-    owner = cfg.env_get("GITHUB_OWNER")
-    repo = cfg.env_get("GITHUB_REPO") or cfg.get("media_hosting", "repo", default="")
+    try:
+        from .media_hosting import github_repo
+        owner, repo = github_repo(cfg)
+    except Exception:  # noqa: BLE001
+        owner = cfg.env_get("GITHUB_OWNER")
+        repo = cfg.env_get("GITHUB_REPO") or cfg.get("media_hosting", "repo", default="")
     print(f"Media hosting      : {method} (repo {owner}/{repo or 'not set'})")
 
     print("\n=== SCHEDULE ===\n")
