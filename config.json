@@ -16,7 +16,7 @@
 
   "platforms": {
     "instagram": {
-      "enabled": true,
+      "enabled": false,
       "caption_max_chars": 2200,
       "hashtag_count": 10
     },
