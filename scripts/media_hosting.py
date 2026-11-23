@@ -161,6 +161,17 @@ def upload_to_github_release(cfg: Config, file: Path, tag: str, replace: bool = 
             timeout=1800,
         )
     if response.status_code not in (200, 201):
+        # race or pagination gap: asset already exists, fetch its URL
+        if response.status_code == 422 and "already_exists" in response.text:
+            retry = requests.get(
+                f"{API}/repos/{owner}/{repo}/releases/{release_id}/assets?per_page=100",
+                headers=_headers(token),
+                timeout=60,
+            )
+            if retry.status_code == 200:
+                for asset in retry.json():
+                    if asset.get("name") == name:
+                        return asset["browser_download_url"]
         raise RuntimeError(f"GitHub asset upload failed {response.status_code}: {response.text[:300]}")
     return response.json()["browser_download_url"]
 
