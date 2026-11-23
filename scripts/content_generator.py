@@ -270,10 +270,10 @@ Return this exact JSON structure:
   "youtube": {{
     "title": "one title, under 95 characters, curiosity driven, no clickbait lie, no emoji, no ALL CAPS spam",
     "title_options": ["3 alternative titles, each under 95 characters"],
-    "description": "SEO description. First 2 lines must work as the visible hook and contain the main keyword. Then 3 to 6 lines of context. Then a single call to action line. Then a keywords line. Total under {caption_max} characters.",
+    "description": "SEO description. First 2 lines must work as the visible hook and contain the main keyword. Then 3 to 6 lines of context. Then a single call to action. Then a line starting with 'Keywords:' listing exactly 10 SEO search keywords/phrases. Then a final line with exactly 10 hashtags. Total under 4500 characters.",
     "tags": ["up to 15 short tags, each 2 to 4 words, no # symbol, total character count under 480"],
-    "keywords": ["5 to 10 search keywords a viewer would actually type"],
-    "hashtags": ["3 hashtags for the YouTube description, no # symbol"]
+    "keywords": ["exactly 10 search keywords/phrases a viewer would actually type, SEO optimized and high intent"],
+    "hashtags": ["exactly 10 YouTube hashtags without the # symbol, mix trending broad and niche, no spam"]
   }},
   "content_summary": "one sentence, what this clip actually shows",
   "topics": ["3 to 5 short topic keywords"]
@@ -283,6 +283,7 @@ Rules for the caption and description:
 - Describe only what the source description supports. If it is vague, stay general and do not invent specifics.
 - Write like a person who actually watched the clip.
 - Keep the Instagram caption under 700 characters.
+- For YouTube, always include exactly 10 SEO keywords and exactly 10 hashtags in the description (and also return them in the keywords/hashtags arrays). Favor high-search, trending-intent terms relevant to the clip.
 """
 
 
@@ -321,16 +322,29 @@ def normalise(payload: dict[str, Any], cfg: Config) -> dict[str, Any]:
     if hashtags and "#" not in caption:
         caption = caption + "\n\n" + " ".join(f"#{tag}" for tag in hashtags)
 
-    yt_hashtags = _clean_list(youtube.get("hashtags"), 5)
+    yt_hashtags = _clean_list(youtube.get("hashtags"), 10)
+    keywords = _clean_list(youtube.get("keywords"), 10)
     yt_description = _clean_text(youtube.get("description"), 5000)
+
+    # ensure the description contains exactly 10 keywords and 10 hashtags
+    lower_desc = yt_description.lower()
+    if keywords and "keywords:" not in lower_desc:
+        yt_description = yt_description.rstrip() + "\n\nKeywords: " + ", ".join(keywords)
     if yt_hashtags:
-        yt_description = yt_description + "\n\n" + " ".join(f"#{tag}" for tag in yt_hashtags)
+        hashtag_line = " ".join(f"#{tag}" for tag in yt_hashtags)
+        if hashtag_line.lower() not in lower_desc:
+            yt_description = yt_description.rstrip() + "\n\n" + hashtag_line
 
     tags = _clean_list(youtube.get("tags"), 15)
     default_tags = cfg.get("platforms", "youtube", "default_tags", default=[]) or []
     for tag in default_tags:
         if tag not in tags:
             tags.append(tag)
+    # also fold keywords into tags for extra SEO coverage
+    for kw in keywords:
+        k = kw.lower()
+        if k not in [t.lower() for t in tags] and len(tags) < 15:
+            tags.append(k)
     tags = tags[:15]
 
     titles = _clean_list(youtube.get("title_options"), 3)
@@ -349,7 +363,8 @@ def normalise(payload: dict[str, Any], cfg: Config) -> dict[str, Any]:
             "title_options": titles,
             "description": yt_description,
             "tags": tags,
-            "keywords": _clean_list(youtube.get("keywords"), 12),
+            "keywords": keywords,
+            "hashtags": yt_hashtags,
         },
         "content_summary": _clean_text(payload.get("content_summary"), 400),
         "topics": _clean_list(payload.get("topics"), 6),
@@ -394,7 +409,17 @@ def fallback_content(description: str, cfg: Config) -> dict[str, Any]:
     for topic in topics:
         if topic not in seen:
             seen.append(topic)
-    topics = seen[:6]
+    topics = seen[:10]
+    seo_fill = ["viral short", "trending video", "shorts feed", "must watch", "viral clip", "trending now", "short video", "watch this", "viral moment", "best shorts"]
+    keywords = topics[:]
+    for k in seo_fill:
+        if len(keywords) >= 10:
+            break
+        if k not in keywords:
+            keywords.append(k)
+    keywords = keywords[:10]
+
+    yt_hashtags = ["shorts", "viral", "trending", "fyp", "reels", "viralvideo", "youtubeshorts", "explore", "mustwatch", "foryou"][:10]
     hashtags = (base_tags + topics)[:hashtag_count]
 
     caption = hook
@@ -407,7 +432,8 @@ def fallback_content(description: str, cfg: Config) -> dict[str, Any]:
         description_text += f"{body}\n\n"
     description_text += (
         "Watch the full clip and tell us what you think in the comments.\n\n"
-        f"Keywords: {', '.join(topics)}\n\n#shorts #viral"
+        f"Keywords: {', '.join(keywords)}\n\n"
+        + " ".join(f"#{t}" for t in yt_hashtags)
     )
 
     return {
@@ -419,11 +445,12 @@ def fallback_content(description: str, cfg: Config) -> dict[str, Any]:
             "title": hook[:95],
             "title_options": [hook[:95]],
             "description": description_text,
-            "tags": ["shorts", "trending", "viral video"] + topics[:12],
-            "keywords": topics,
+            "tags": ["shorts", "trending", "viral video"] + keywords[:12],
+            "keywords": keywords,
+            "hashtags": yt_hashtags,
         },
         "content_summary": summary,
-        "topics": topics,
+        "topics": topics[:6],
     }
 
 
