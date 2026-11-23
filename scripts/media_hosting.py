@@ -9,6 +9,7 @@ reachable from the internet without any login. Free options implemented:
 """
 from __future__ import annotations
 
+import json
 import mimetypes
 import os
 import shutil
@@ -114,6 +115,63 @@ def _release_id(owner: str, repo: str, tag: str, token: str) -> int | None:
     if create.status_code not in (200, 201):
         raise RuntimeError(f"GitHub release create failed {create.status_code}: {create.text[:300]}")
     return int(create.json()["id"])
+
+
+def _manifest_path(cfg: Config) -> Path:
+    return cfg.root / "clips_manifest.json"
+
+
+def _load_manifest(cfg: Config) -> dict:
+    path = _manifest_path(cfg)
+    if path.exists():
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            return {}
+    return {}
+
+
+def _save_manifest(cfg: Config, manifest: dict) -> None:
+    _manifest_path(cfg).write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def delete_from_github_release(cfg: Config, filename: str, tag: str = "clips") -> bool:
+    """Delete an asset from the release and remove it from clips_manifest.json."""
+    token = github_token(cfg)
+    owner, repo = github_repo(cfg)
+    if not (token and owner and repo):
+        return False
+
+    release_id = _release_id(owner, repo, tag, token)
+    if release_id is None:
+        return False
+
+    deleted = False
+    assets = requests.get(
+        f"{API}/repos/{owner}/{repo}/releases/{release_id}/assets?per_page=100",
+        headers=_headers(token),
+        timeout=60,
+    )
+    if assets.status_code == 200:
+        for asset in assets.json():
+            if asset.get("name") == filename:
+                r = requests.delete(
+                    f"{API}/repos/{owner}/{repo}/releases/assets/{asset['id']}",
+                    headers=_headers(token),
+                    timeout=60,
+                )
+                deleted = r.status_code in (204, 200)
+                break
+
+    manifest = _load_manifest(cfg)
+    clips = manifest.get("clips", [])
+    new_clips = [c for c in clips if c.get("name") != filename and c.get("asset") != filename]
+    if len(new_clips) != len(clips):
+        manifest["clips"] = new_clips
+        manifest["clip_count"] = len(new_clips)
+        manifest["total_bytes"] = sum(int(c.get("size", 0) or 0) for c in new_clips)
+        _save_manifest(cfg, manifest)
+    return deleted
 
 
 def upload_to_github_release(cfg: Config, file: Path, tag: str, replace: bool = False) -> str:

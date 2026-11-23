@@ -8,6 +8,7 @@
 
   "publish_window_minutes": 30,
   "posts_per_day": 5,
+  "delete_after_publish": true,
 
   "clips_dir": "clips",
   "descriptions_dir": "descriptions",

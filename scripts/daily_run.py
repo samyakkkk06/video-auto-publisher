@@ -295,6 +295,8 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False, only: str = "al
             except Exception as exc:  # noqa: BLE001
                 log(cfg, f"Instagram failed for {time_str}: {exc}", "ERROR")
 
+        cleanup_published_clip(cfg, state, slot, day_key, dry_run=dry_run)
+
     save_state(cfg, state)
     if not dry_run:
         commit_state(cfg, f"chore: publishing state {day_key}")
@@ -310,6 +312,69 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False, only: str = "al
 # --------------------------------------------------------------------------
 # helpers
 # --------------------------------------------------------------------------
+def _slot_fully_published(cfg: Config, slot: dict) -> bool:
+    yt_ok = (not cfg.youtube_enabled) or bool(slot.get("youtube", {}).get("video_id"))
+    ig_ok = (not cfg.instagram_enabled) or bool(slot.get("instagram", {}).get("media_id"))
+    return yt_ok and ig_ok
+
+
+def cleanup_published_clip(cfg: Config, state: dict, slot: dict, day_key: str, dry_run: bool = False) -> None:
+    """Delete a clip from local disk, release, and manifest once fully posted."""
+    if not cfg.get("delete_after_publish", default=False) or dry_run:
+        return
+    if not _slot_fully_published(cfg, slot):
+        return
+
+    clip_name = slot.get("clip")
+    if not clip_name:
+        return
+
+    # do not delete if any other slot still needs this source clip
+    for dk, day_entry in state.get("days", {}).items():
+        for t, s in day_entry.get("slots", {}).items():
+            if s.get("clip") != clip_name:
+                continue
+            if dk == day_key and s is slot:
+                continue
+            if not _slot_fully_published(cfg, s):
+                return
+
+    removed_any = False
+
+    # local source clip
+    clip_path = cfg.clips_dir / clip_name
+    if clip_path.exists():
+        try:
+            clip_path.unlink()
+            removed_any = True
+            log(cfg, f"Deleted local clip: {clip_name}")
+        except Exception as exc:  # noqa: BLE001
+            log(cfg, f"Could not delete local clip {clip_name}: {exc}", "WARN")
+
+    # generated media/metadata
+    for folder in (cfg.output_dir / "media", cfg.output_dir / "metadata"):
+        if folder.exists():
+            for p in folder.glob(f"{Path(clip_name).stem}*"):
+                try:
+                    p.unlink()
+                    removed_any = True
+                except Exception:  # noqa: BLE001
+                    pass
+
+    # release + manifest
+    try:
+        from .media_hosting import delete_from_github_release
+        delete_from_github_release(cfg, clip_name)
+        removed_any = True
+        log(cfg, f"Removed {clip_name} from GitHub Release/manifest")
+    except Exception as exc:  # noqa: BLE001
+        log(cfg, f"Could not remove {clip_name} from release: {exc}", "WARN")
+
+    if removed_any:
+        slot["cleaned_up"] = True
+        save_state(cfg, state)
+
+
 def verify(cfg: Config) -> None:
     """Check every credential and connection without publishing anything."""
     print("\n=== SYSTEM CHECK ===\n")

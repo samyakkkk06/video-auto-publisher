@@ -65,7 +65,9 @@ def commit_state(cfg: Config, message: str = "chore: update publishing state") -
     try:
         subprocess.run(["git", "config", "user.name", "VideoAutoPublisher"], check=False, capture_output=True)
         subprocess.run(["git", "config", "user.email", "autopublish@users.noreply.github.com"], check=False, capture_output=True)
-        subprocess.run(["git", "add", str(cfg.state_file)], check=True, capture_output=True)
+        to_add = [str(cfg.state_file), "clips_manifest.json"]
+        for p in to_add:
+            subprocess.run(["git", "add", p], check=False, capture_output=True)
         diff = subprocess.run(["git", "diff", "--cached", "--quiet"], capture_output=True)
         if diff.returncode != 0:
             subprocess.run(["git", "commit", "-m", message], check=True, capture_output=True)
