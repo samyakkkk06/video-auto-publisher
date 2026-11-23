@@ -44,6 +44,9 @@ You drop clips and a Word file in. Everything else happens by itself.
 clips/*.mp4  +  descriptions/*.docx
           |
           v
+  [GitHub Release]  clips are stored here, not in git history
+          |
+          v  (cloud runner downloads what it needs)
   [AI writing]  Gemini / Groq / OpenRouter / Ollama  (free)
   Instagram caption + hashtags, YouTube title + description + tags
           |
@@ -74,12 +77,25 @@ If ffmpeg is missing, install it from <https://ffmpeg.org/download.html> and add
 
 ---
 
-### Step 1 - Add your content (1 minute)
+### Step 1 - Add your content (2 minutes)
 
 - Put your 30 to 45 second clips in `clips/` (name them `clip_001.mp4`, `clip_002.mp4`, ...)
 - Put your Word file in `descriptions/` (one paragraph block per clip, blank line between)
+  - `.docx`, `.doc` (even when Word exported it as HTML), `.txt`, `.md`, `.rtf` and `.json` all work
+- Then publish them to the cloud:
 
-The publisher rotates through this folder, 5 clips per day.
+```powershell
+powershell -ExecutionPolicy Bypass -File upload_clips.ps1
+```
+
+That uploads the clips to a GitHub Release, writes `clips_manifest.json` and pushes it.
+
+**Why the clips live in a Release and not in git:** a video file in git history is stored forever
+and every clone downloads it. 20 clips is already 300 MB. A GitHub Release holds the same files
+for free, the repository stays at 0.1 MB, and the cloud runner downloads the clips it needs
+before each publish run.
+
+The publisher rotates through the clips, 5 per day.
 
 ---
 
@@ -328,6 +344,17 @@ or use a simple loop:
 while ($true) { powershell -ExecutionPolicy Bypass -File run_local.ps1; Start-Sleep -Seconds 600 }
 ```
 
+## Your daily routine
+
+```
+1. drop new clips into clips/
+2. update descriptions/ if you added new ones
+3. powershell -ExecutionPolicy Bypass -File upload_clips.ps1
+```
+
+Step 3 uploads only the new clips, updates the manifest and pushes it. Everything else,
+including the actual publishing, happens on the cloud without you.
+
 ---
 
 ## What is automated vs manual
@@ -371,13 +398,32 @@ Add a real example caption of your own to `content.extra_instructions`.
 Only `mp4, mov, m4v, webm, avi, mkv, mpg, mpeg` are picked up, and files starting with `_`
 or `readme` are skipped on purpose.
 
+**The cloud runner says 0 clips**
+Run `powershell -ExecutionPolicy Bypass -File upload_clips.ps1` to push your clips to the
+Release, then check the Actions log for the "Download clips from the release" step.
+
+**The repo is too big / GitHub warns about size**
+The clips are not in git. If you see a large repository, you have old history from before the
+switch. Fix with a clean history:
+
+```powershell
+git checkout --orphan clean
+git add -A
+git commit -m "clean history"
+git branch -D main
+git branch -m clean main
+git reflog expire --expire=now --all
+git gc --prune=now
+```
+
 ---
 
 ## Files
 
 ```
 Automation/
-├── clips/                    your video clips
+├── clips/                    your video clips (not in git, stored in a Release)
+├── clips_manifest.json       the small index git does track
 ├── descriptions/             your Word file with descriptions
 ├── output/
 │   ├── media/                vertical video created by ffmpeg
@@ -390,6 +436,8 @@ Automation/
 │   ├── ai_client.py          free AI providers with fallback
 │   ├── config.py             config and .env loading
 │   ├── content_generator.py  Word file -> captions, descriptions, tags
+│   ├── fetch_clips.py        download clips from the Release
+│   ├── upload_clips.py       upload clips to the Release
 │   ├── media_hosting.py      public URL for Instagram
 │   ├── media_prep.py         ffmpeg vertical conversion
 │   ├── publisher_instagram.py
@@ -400,6 +448,7 @@ Automation/
 ├── .github/workflows/publish.yml   the cloud scheduler
 ├── setup.ps1                 one time install
 ├── setup_github.ps1          one time repo + secrets setup
+├── upload_clips.ps1          publish new clips to the Release
 └── run_local.ps1             run it
 ```
 
