@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import mimetypes
 import os
+import shutil
+import subprocess
 from pathlib import Path
 
 import requests
@@ -19,6 +21,68 @@ from .config import Config
 
 API = "https://api.github.com"
 UPLOAD = "https://uploads.github.com"
+
+
+def github_token(cfg: Config) -> str:
+    """Token for the GitHub API.
+
+    Order: GITHUB_TOKEN in .env, then the token from the GitHub CLI login.
+    The CLI token already has repo and workflow scopes, so a separate
+    personal access token is not needed on the machine you work from.
+    """
+    token = cfg.env_get("GITHUB_TOKEN") or os.environ.get("GITHUB_TOKEN", "")
+    if token:
+        return token
+
+    if shutil.which("gh"):
+        try:
+            result = subprocess.run(
+                ["gh", "auth", "token"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip()
+        except Exception:  # noqa: BLE001
+            pass
+    return ""
+
+
+def github_repo(cfg: Config) -> tuple[str, str]:
+    """Owner and repo name.
+
+    Order: .env, the Actions environment, then the git remote. The remote
+    means a fresh clone works with no extra configuration.
+    """
+    owner = cfg.env_get("GITHUB_OWNER") or os.environ.get("GITHUB_REPOSITORY_OWNER", "")
+    repo = (
+        cfg.env_get("GITHUB_REPO")
+        or os.environ.get("GITHUB_REPOSITORY", "")
+        or cfg.get("media_hosting", "repo", default="")
+    )
+    if owner and repo:
+        return owner, repo
+
+    try:
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            cwd=str(cfg.root),
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+        url = result.stdout.strip()
+    except Exception:  # noqa: BLE001
+        url = ""
+
+    if url:
+        cleaned = url.removesuffix(".git").rstrip("/")
+        parts = cleaned.replace(":", "/").split("/")
+        if len(parts) >= 2:
+            owner = owner or parts[-2]
+            repo = repo or parts[-1]
+    return owner, repo
 
 
 def _headers(token: str) -> dict[str, str]:
@@ -53,13 +117,12 @@ def _release_id(owner: str, repo: str, tag: str, token: str) -> int | None:
 
 
 def upload_to_github_release(cfg: Config, file: Path, tag: str, replace: bool = False) -> str:
-    token = cfg.env_get("GITHUB_TOKEN") or os.environ.get("GITHUB_TOKEN", "")
-    owner = cfg.env_get("GITHUB_OWNER")
-    repo = cfg.env_get("GITHUB_REPO") or cfg.get("media_hosting", "repo", default="")
+    token = github_token(cfg)
+    owner, repo = github_repo(cfg)
     if not (token and owner and repo):
         raise RuntimeError(
-            "GITHUB_TOKEN, GITHUB_OWNER and GITHUB_REPO are required for github_release hosting. "
-            "See README Step 6."
+            "GitHub access is not configured. Either set GITHUB_TOKEN, GITHUB_OWNER and GITHUB_REPO "
+            "in .env, or sign in with the GitHub CLI (gh auth login)."
         )
 
     release_id = _release_id(owner, repo, tag, token)
