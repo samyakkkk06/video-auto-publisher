@@ -87,10 +87,15 @@ def build_queue(cfg: Config, state: dict, day: datetime) -> dict:
     count = min(cfg.posts_per_day, len(cfg.schedule_times), len(all_clips))
     slots = cfg.schedule_times[:count]
 
-    # prefer clips never used before, then least recently used
+    # prefer clips never used before, then the ones used longest ago
+    used_order = {name: index for index, name in enumerate(state.get("used_clips", []))}
     ordered = sorted(
         all_clips,
-        key=lambda p: (p.name in used, list(all_clips).index(p)),
+        key=lambda p: (
+            p.name in used,
+            used_order.get(p.name, 0),
+            cg._natural_key(p),
+        ),
     )
     selected = ordered[:count]
 
@@ -112,8 +117,12 @@ def build_queue(cfg: Config, state: dict, day: datetime) -> dict:
     entry["queue_size"] = count
     state.setdefault("used_clips", [])
     for clip in selected:
-        if clip.name not in state["used_clips"]:
-            state["used_clips"].append(clip.name)
+        if clip.name in state["used_clips"]:
+            state["used_clips"].remove(clip.name)
+        state["used_clips"].append(clip.name)
+    # keep the history bounded
+    if len(state["used_clips"]) > len(all_clips) * 2:
+        state["used_clips"] = state["used_clips"][-len(all_clips) :]
     return entry
 
 

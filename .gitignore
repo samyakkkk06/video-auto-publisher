@@ -16,6 +16,10 @@ clips/*.avi
 clips/*.mkv
 clips/*.part
 
+# The long source video, if it is kept next to the project
+*.1080p.mp4
+YTSave*.mp4
+
 # Generated output (rebuilt on every run)
 output/media/
 output/logs/

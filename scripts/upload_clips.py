@@ -17,7 +17,7 @@ from pathlib import Path
 
 from . import media_hosting
 from .config import Config, load_config
-from .content_generator import VIDEO_EXTENSIONS, _natural_key, load_clips
+from .content_generator import load_clips
 from .state import log
 
 MANIFEST_NAME = "clips_manifest.json"

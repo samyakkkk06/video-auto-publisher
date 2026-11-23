@@ -396,7 +396,8 @@ Add a real example caption of your own to `content.extra_instructions`.
 
 **A clip was not picked up**
 Only `mp4, mov, m4v, webm, avi, mkv, mpg, mpeg` are picked up, and files starting with `_`
-or `readme` are skipped on purpose.
+or `readme` are skipped on purpose. A missing clip is skipped for that slot and the queue moves
+on, so deleting a clip never stops the system.
 
 **The cloud runner says 0 clips**
 Run `powershell -ExecutionPolicy Bypass -File upload_clips.ps1` to push your clips to the
