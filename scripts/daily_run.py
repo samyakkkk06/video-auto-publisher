@@ -313,8 +313,8 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False, only: str = "al
 # helpers
 # --------------------------------------------------------------------------
 def _slot_fully_published(cfg: Config, slot: dict) -> bool:
-    yt_ok = (not cfg.youtube_enabled) or bool(slot.get("youtube", {}).get("video_id"))
-    ig_ok = (not cfg.instagram_enabled) or bool(slot.get("instagram", {}).get("media_id"))
+    yt_ok = (not cfg.get("platforms", "youtube", "enabled", default=True)) or bool(slot.get("youtube", {}).get("video_id"))
+    ig_ok = (not cfg.get("platforms", "instagram", "enabled", default=True)) or bool(slot.get("instagram", {}).get("media_id"))
     return yt_ok and ig_ok
 
 
