@@ -1,0 +1,55 @@
+{
+  "_comment": "Main configuration. Times are local in 'timezone' below. Edit freely.",
+
+  "timezone": "America/New_York",
+
+  "_schedule_comment": "5 posting slots per day (24h clock, local timezone). Tuned for Tier 1 countries: US, UK, Canada, Australia, Germany, France.",
+  "schedule_times": ["07:00", "11:00", "16:00", "20:00", "00:00"],
+
+  "publish_window_minutes": 30,
+  "posts_per_day": 5,
+
+  "clips_dir": "clips",
+  "descriptions_dir": "descriptions",
+  "output_dir": "output",
+  "state_file": "state/published.json",
+
+  "platforms": {
+    "instagram": {
+      "enabled": true,
+      "caption_max_chars": 2200,
+      "hashtag_count": 10
+    },
+    "youtube": {
+      "enabled": true,
+      "category_id": "22",
+      "made_for_kids": false,
+      "privacy_status": "public",
+      "default_tags": ["shorts", "trending", "viral"]
+    }
+  },
+
+  "media_hosting": {
+    "_comment": "github_release = free public URL via GitHub Releases. raw_github = files committed in repo. external = you provide your own CDN base URL.",
+    "method": "github_release",
+    "repo": "",
+    "release_tag_prefix": "media"
+  },
+
+  "content": {
+    "language": "English",
+    "audience": "Tier 1 countries: United States, United Kingdom, Canada, Australia, New Zealand, Germany, France, Ireland",
+    "brand_voice": "conversational and energetic, first person, short punchy sentences, minimal emoji, no corporate jargon, no em dashes",
+    "niche": "",
+    "extra_instructions": ""
+  },
+
+  "media": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30,
+    "video_crf": 23,
+    "preset": "medium",
+    "audio_bitrate": "128k"
+  }
+}

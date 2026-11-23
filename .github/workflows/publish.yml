@@ -1,0 +1,94 @@
+name: Auto Publish
+
+# Runs on GitHub's free cloud runners, so it works even when your laptop is off.
+# Every 10 minutes it checks which posting slot is due and publishes it.
+on:
+  schedule:
+    # 21 */2 * * *  -> every 2 hours (keeps GitHub's free minutes low)
+    # */10 * * * * -> every 10 minutes (more precise posting times)
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "What to do"
+        required: true
+        default: "run"
+        type: choice
+        options:
+          - run
+          - dry-run
+          - force
+          - verify
+
+permissions:
+  contents: write
+
+concurrency:
+  group: auto-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      CUSTOM_AI_BASE_URL: ${{ secrets.CUSTOM_AI_BASE_URL }}
+      CUSTOM_AI_API_KEY: ${{ secrets.CUSTOM_AI_API_KEY }}
+      CUSTOM_AI_MODEL: ${{ secrets.CUSTOM_AI_MODEL }}
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      INSTAGRAM_USER_ID: ${{ secrets.INSTAGRAM_USER_ID }}
+      INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_OWNER: ${{ github.repository_owner }}
+      GITHUB_REPO: ${{ github.repository }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+
+      - name: Download clips from the release
+        run: python -m scripts.fetch_clips
+
+      - name: Publish
+        run: |
+          if [ "${{ github.event.inputs.mode }}" = "verify" ]; then
+            python -m scripts.daily_run --verify
+          elif [ "${{ github.event.inputs.mode }}" = "dry-run" ]; then
+            python -m scripts.daily_run --dry-run
+          elif [ "${{ github.event.inputs.mode }}" = "force" ]; then
+            python -m scripts.daily_run --force
+          else
+            python -m scripts.daily_run
+          fi
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: publish-logs
+          path: output/logs/
+          retention-days: 7

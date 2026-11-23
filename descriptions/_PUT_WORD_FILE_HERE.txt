@@ -1,0 +1,16 @@
+PUT YOUR WORD FILE (OR TXT FILE) IN THIS FOLDER
+
+- Word (.docx) is supported, as well as .txt, .md and .json
+- One paragraph block per clip, separated by a blank line
+- The first block describes clip_001, the second clip_002, and so on
+
+Example:
+
+The camera pans over a quiet beach at sunrise, waves rolling in, and a
+kite surfer catches a wave in the distance.
+
+A crowded night market comes alive, neon signs reflecting in puddles
+while people move between food stalls.
+
+The AI reads this text and writes the Instagram caption, the YouTube
+title, description, tags and hashtags from it.

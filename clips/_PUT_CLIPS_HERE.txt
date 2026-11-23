@@ -1,0 +1,9 @@
+PUT YOUR VIDEO CLIPS IN THIS FOLDER
+
+- One file per clip, 30 to 45 seconds long
+- mp4, mov, m4v or webv
+- Name them in order: clip_001.mp4, clip_002.mp4, ...
+- The publisher rotates through this folder, 5 clips per day
+
+The system automatically converts every clip to 1080x1920 vertical H.264
+which is what Instagram Reels and YouTube Shorts expect.

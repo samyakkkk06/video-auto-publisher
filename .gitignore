@@ -1,0 +1,26 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Secrets (never commit these, use GitHub Actions secrets instead)
+.env
+
+# Video clips live in a GitHub Release, not in git history.
+# clips_manifest.json is tracked, the mp4 files are not.
+clips/*.mp4
+clips/*.mov
+clips/*.m4v
+clips/*.webm
+clips/*.avi
+clips/*.mkv
+clips/*.part
+
+# Generated output (rebuilt on every run)
+output/media/
+output/logs/
+output/metadata/
+
+# OS
+.DS_Store
+Thumbs.db
